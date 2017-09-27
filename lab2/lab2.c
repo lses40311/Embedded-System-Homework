@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 typedef struct link_list{
 	double val ;
@@ -17,19 +18,26 @@ int main(int argc, char ** argv){
 	link_list * head ;
     int priority ;
     double val ;
-    while(fscanf(fp, "%lf,%d\n", &val, &priority) > 0){
+    clock_t begin_en = clock();
+	//enqueue all elements.
+	while(fscanf(fp, "%lf,%d\n", &val, &priority) > 0){
         printf("%lf, %d\n", val, priority) ;
     	head = enqueue(head, val, priority) ;	
 	}
-	
+	clock_t end_en = clock();
 	printf("===================\n") ;
-
+	
+	// Dequeue all elements
+	clock_t begin_de = clock();
 	while(head != NULL){
 		link_list * tmp = head ;
 		head = dequeue(head) ;
 		free(tmp) ;
 	}
-
+	clock_t end_de = clock();
+	
+	printf("Time spent (Enqueue): %.3lf\n", (double)(end_en - begin_en) / CLOCKS_PER_SEC) ;
+	printf("Time spent (Dequeue): %.3lf\n", (double)(end_de - begin_de) / CLOCKS_PER_SEC) ;
 	fclose(fp) ;
 	return 0 ;
 }

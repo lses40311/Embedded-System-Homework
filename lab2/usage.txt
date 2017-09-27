@@ -1,0 +1,58 @@
+This .tar includes two codes: lab2.c testdata_generator
+
+First, we have to use the .py file to generate a large test file. The format will be a lot of lines of value-priority pairs, which is in the format of double-int. 
+
+For example:
+88.05619263002721,94
+0.9768331082134041,32
+23.067117473658882,78
+15.914597593196234,84
+37.10431676414674,79
+22.028790481095093,96
+40.46587272432633,56
+25.75450810915002,39
+82.71603621306103,46
+34.36601566906501,3
+37.94157764907883,34
+95.5594608033832,28
+...
+
+The value is generaated randomly in the range (0,100) with uniform distribution. 
+If you want to generate a larger test data, modify the N in the testdata_generate.py code. Then, execute the .py file with python2.7, test.txt file will be re-generated.
+
+Second, execute the lab2.c code by using ./a.out [filename]. The filename is the name of your test file. This program will read all the data in the test file, and then enqueue than one by one into the priority queue. And then, another WHILE LOOP will dequeue all of the elements and print them on the screen.  The queue, which is implemented using link list, will always remain sorted. The element with smaller priority number has the higher priority. So the element with smallest priority number will be pop out first.
+
+The output consists of two parts: enqueue and dequeue.
+The enqueue part will show where did the program insert this element. EX:
+96.846615, 33
+Start enqueue...
+Create queue.
+78.290845, 19
+Start enqueue...
+Insert to head
+71.152693, 48
+Start enqueue...
+Insert to tail.
+82.021796, 64
+Start enqueue...
+Insert to tail.
+29.290917, 31
+...
+
+For the dequeue part, the program will print out the element it dequeued. EX:
+Pop out: val=93.081600, priority=100
+Pop out: val=18.935812, priority=100
+Pop out: val=46.208304, priority=100
+Pop out: val=63.036782, priority=100
+Pop out: val=62.955636, priority=100
+Pop out: val=21.510645, priority=100
+Pop out: val=22.262936, priority=100
+Pop out: val=30.177854, priority=100
+Pop out: val=82.952577, priority=100
+Pop out: val=45.735813, priority=100
+Pop out: val=73.821294, priority=100
+...
+
+Also, the time spent will show in the end of the output with CPU clock time.
+
+The output log can be stored using ./a.out filename >> output.txt .
