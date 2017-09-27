@@ -1,0 +1,19 @@
+compile: gcc lab1.c
+usage: ./a.out [filename] [target word]
+
+The program will pause when ever it finds a matching word. If you want to find every matched words in the txt file, comment line 66, 67 in the .c file. 
+
+screen shots:
+
+itritekiMini-2:lab1 itri$ ./a.out crypto.txt to
+are trying to thwart new
+Please hit ENTER to continue..
+
+is seeking to either outlaw
+Please hit ENTER to continue..
+
+or appears to offer something
+Please hit ENTER to continue..
+
+
+
