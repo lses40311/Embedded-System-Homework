@@ -11,23 +11,26 @@ typedef struct link_list{
 link_list * enqueue() ;
 link_list * dequeue() ;
 
-int main(){
-	double arr[256] ;
-	arr[0] = 10.5454 ;
-	arr[1] = 0.55878 ;
-	arr[2] = 50.54 ;
-	int p[3] = {3 , 1 , 2} ;
-	int len = 3 ;
-	int i ;
+int main(int argc, char ** argv){
+    const char * filename = argv[1] ;
+    FILE * fp = fopen(filename, "r") ;
 	link_list * head ;
-	for(i=0; i<len ; i++){
-		head = enqueue(head, arr[i], p[i]) ;
+    int priority ;
+    double val ;
+    while(fscanf(fp, "%lf,%d\n", &val, &priority) > 0){
+        printf("%lf, %d\n", val, priority) ;
+    	head = enqueue(head, val, priority) ;	
 	}
-	for(i=0; i< len ; i++){
+	
+	printf("===================\n") ;
+
+	while(head != NULL){
 		link_list * tmp = head ;
 		head = dequeue(head) ;
 		free(tmp) ;
 	}
+
+	fclose(fp) ;
 	return 0 ;
 }
 
@@ -36,6 +39,8 @@ link_list * enqueue(link_list * head, double val, int priority){
 	link_list * node = (link_list*) malloc(sizeof(link_list)) ;
 	node->val = val ;
 	node->priority = priority ;
+	node->next = NULL ;
+	printf("Start enqueue...\n") ;
 	if(head == NULL){
 		printf("Create queue.\n") ;
 		return node ;
@@ -55,8 +60,10 @@ link_list * enqueue(link_list * head, double val, int priority){
 				ptr->next = node ;
 				return head ;
 			}
+			ptr = ptr->next ;
 		}
 		// Next node is NULL
+		printf("Insert to tail.\n") ;
 		ptr->next = node ;
 	}
 	return head ;
