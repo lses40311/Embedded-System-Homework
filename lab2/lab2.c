@@ -15,7 +15,7 @@ link_list * dequeue() ;
 int main(int argc, char ** argv){
     const char * filename = argv[1] ;
     FILE * fp = fopen(filename, "r") ;
-	link_list * head ;
+    link_list * head = NULL ;
     int priority ;
     double val ;
     clock_t begin_en = clock();
