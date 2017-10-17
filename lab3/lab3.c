@@ -3,6 +3,11 @@
 #include <string.h>
 #include <time.h>
 
+#define MAX_RULE_NUMBER 100
+#define MAX_SIZE 4
+#define PXA 1
+
+// Link list structure
 typedef struct link_list{
 	int val ;
 	int priority ;
@@ -17,8 +22,7 @@ int get_priority() ;
 
 
 // Global var declare
-int rule_arr[100] = {} ;
-int MAX_SIZE = 4 ;
+int rule_arr[MAX_RULE_NUMBER] = {} ;
 int q_size = 0 ;
 
 int main(int argc, char ** argv){
@@ -70,8 +74,10 @@ int main(int argc, char ** argv){
 link_list * enqueue(link_list * head, int val, int priority){
 	// First check the q size
 	if(q_size >= MAX_SIZE){
-		//Full
+		//Q is full: pop & free
+		link_list * ptr = head ;
 		head = dequeue(head);
+		free(ptr) ;
 	}
 	q_size ++ ;
 	link_list * node = (link_list*) malloc(sizeof(link_list)) ;
@@ -137,5 +143,5 @@ int get_priority(int val, int rule_cnt){
 			return i ;
 		}
 	}
-	return 100 ;
+	return MAX_RULE_NUMBER ;
 }
