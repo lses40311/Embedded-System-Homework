@@ -2,10 +2,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/fcntl.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include "seg.h"
 
 #define MAX_RULE_NUMBER 100
 #define MAX_SIZE 4
-#define PXA 1
+#define PXA 0
+
+#if PXA
+#include "asm-arm/arch-pxa/lib/creator_pxa270_lcd.h"
+#endif
 
 // Link list structure
 typedef struct link_list{
@@ -19,7 +27,9 @@ link_list * enqueue() ;
 link_list * dequeue() ;
 void show_queue() ;
 int get_priority() ;
-
+void blink() ;
+void show_7seg() ;
+void show_lcd() ;
 
 // Global var declare
 int rule_arr[MAX_RULE_NUMBER] = {} ;
@@ -31,6 +41,19 @@ int main(int argc, char ** argv){
     FILE * fp = fopen(filename, "r") ;
     FILE * rule_fd = fopen(rule_file, "r") ;
 	FILE * out = fopen("output.txt", "w") ;
+
+	#if PXA
+	int led_fd ;
+	if((led_fd = open("/dev/lcd", O_RDWR)) < 0){
+        printf("open failed\n") ;
+        exit(-1) ;
+    }
+	unsigned short key = 0 ;
+	ioctl(led_fd, KEY_IOCTL_CLEAR, key) ;
+	printf("Init complete, press a buttom to start the program.\n") ;
+	ioctl(led_fd, KEY_IOCTL_WAIT_CHAR, &key) ;
+	#endif
+	
 	link_list * head = NULL ;
     int val ;
     clock_t begin_en = clock();
@@ -117,6 +140,7 @@ link_list * dequeue(link_list * head){
 	if(head != NULL){
 		q_size-- ;
 		printf("Pop out: val=%d, priority=%d\n", head->val, head->priority) ;
+		printf("hex:%lx\n", seg_data_gen(head->priority)) ;
 		return head->next ;
 	}
 	else{
@@ -145,3 +169,45 @@ int get_priority(int val, int rule_cnt){
 	}
 	return MAX_RULE_NUMBER ;
 }
+
+#if PXA
+void blink(int led_fd){
+	unsigned short data ;
+	data=LED_ALL_ON ;
+    ioctl (led_fd , LED_IOCTL_SET, &data );
+    printf("Turn on all LED lamps\n");
+    sleep (0.1);
+
+    data=LED_ALL_OFF ;
+    ioctl (led_fd , LED_IOCTL_SET, &data );
+    printf("Turn off all LED lamps\n");
+	sleep(0.1) ;
+
+	ioctl (led_fd , LED_IOCTL_SET, &data );
+    printf("Turn on all LED lamps\n");
+    sleep (0.1);
+
+    data=LED_ALL_OFF ;
+    ioctl (led_fd , LED_IOCTL_SET, &data );
+    printf("Turn off all LED lamps\n");
+}
+
+void show_7seg(int lcd_fd, int rule_num){
+	_7seg_info_t data ;
+	ioctl(lcd_fd, _7SEG_IOCTL_ON, NULL) ;
+	data.Mode = _7SEG_MODE_PATTERN ;
+	data.Which = 15 ;
+	data.Value = seg_data_gen(rule_num) ;
+	ioctl(lcd_fd, _7SEG_IOCTL_SET, &data) ;
+	sleep(1) ;
+	ioctl(lcd_fd, _7SEG_IOCTL_OFF, NULL) ;
+}
+
+void show_lcd(int lcd_fd, int val){
+	lcd_write_info_t display ;
+	ioctl(lcd_fd, LCD_IOCTL_CLEAR, NULL) ;
+	display.Count = sprintf((char*) display.Msg, "%d", val) ;
+	ioctl(lcd_fd, LCD_IOCTL_WRITE, &display) ;
+}
+#endif
+

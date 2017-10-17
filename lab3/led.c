@@ -10,7 +10,7 @@ int main(){
     unsigned short data ;
 
     if((fd = open("/dev/lcd", O_RDWR)) < 0){
-        printf("open faled\n") ;
+        printf("open failed\n") ;
         exit(-1) ;
     }
 
