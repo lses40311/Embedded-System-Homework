@@ -9,7 +9,7 @@
 
 #define MAX_RULE_NUMBER 100
 #define MAX_SIZE 4
-#define PXA 0
+#define PXA 1
 
 #if PXA
 #include "asm-arm/arch-pxa/lib/creator_pxa270_lcd.h"
@@ -43,15 +43,18 @@ int main(int argc, char ** argv){
 	FILE * out = fopen("output.txt", "w") ;
 
 	#if PXA
-	int led_fd ;
-	if((led_fd = open("/dev/lcd", O_RDWR)) < 0){
+	int lcd_fd ;
+	if((lcd_fd = open("/dev/lcd", O_RDWR)) < 0){
         printf("open failed\n") ;
         exit(-1) ;
     }
 	unsigned short key = 0 ;
-	ioctl(led_fd, KEY_IOCTL_CLEAR, key) ;
+	ioctl(lcd_fd, KEY_IOCTL_CLEAR, key) ;
 	printf("Init complete, press a buttom to start the program.\n") ;
-	ioctl(led_fd, KEY_IOCTL_WAIT_CHAR, &key) ;
+	ioctl(lcd_fd, KEY_IOCTL_WAIT_CHAR, &key) ;
+	ioctl(lcd_fd, _7SEG_IOCTL_ON, NULL) ;
+	ioctl(lcd_fd, LCD_IOCTL_CLEAR, NULL) ;
+	printf("Program Start.\n") ;
 	#endif
 	
 	link_list * head = NULL ;
@@ -70,8 +73,8 @@ int main(int argc, char ** argv){
 	while(fscanf(fp, "%d\n", &val) > 0){
 		int priority = get_priority(val, rule_idx) ;
     	//printf("val=%d, priority=%d\n", val, priority) ;
-		head = enqueue(head, val, priority) ;	
-		show_queue(head) ;
+		head = enqueue(head, val, priority, lcd_fd) ;	
+		// show_queue(head) ;
 	}
 	clock_t end_en = clock();
 	printf("==========pop all=========\n") ;
@@ -94,12 +97,12 @@ int main(int argc, char ** argv){
 }
 
 
-link_list * enqueue(link_list * head, int val, int priority){
+link_list * enqueue(link_list * head, int val, int priority, int lcd_fd){
 	// First check the q size
 	if(q_size >= MAX_SIZE){
 		//Q is full: pop & free
 		link_list * ptr = head ;
-		head = dequeue(head);
+		head = dequeue(head, lcd_fd);
 		free(ptr) ;
 	}
 	q_size ++ ;
@@ -136,11 +139,19 @@ link_list * enqueue(link_list * head, int val, int priority){
 	return head ;
 }
 
-link_list * dequeue(link_list * head){
+link_list * dequeue(link_list * head, int lcd_fd){
 	if(head != NULL){
 		q_size-- ;
-		printf("Pop out: val=%d, priority=%d\n", head->val, head->priority) ;
-		printf("hex:%lx\n", seg_data_gen(head->priority)) ;
+		printf("%d, rule:%d\n", head->val, head->priority+1) ;
+		//printf("Pop out: val=%d, priority=%d\n", head->val, head->priority) ;
+		#if PXA
+		//show_lcd(lcd_fd, head->val) ;
+		show_queue(head, lcd_fd) ;
+		show_7seg(lcd_fd, head->priority) ;
+		if((head->priority) == 0){
+			blink(lcd_fd) ;
+		}
+		#endif
 		return head->next ;
 	}
 	else{
@@ -150,13 +161,18 @@ link_list * dequeue(link_list * head){
 }
 
 // Print the queue
-void show_queue(link_list * head){
+void show_queue(link_list * head, int lcd_fd){
 	link_list * ptr = head ;
+	lcd_write_info_t display ;
+	
+	ioctl(lcd_fd, LCD_IOCTL_CLEAR, NULL) ;
 	while(ptr != NULL){
-		printf("%d->", ptr->val) ;
+		//printf("%d->", ptr->val) ;
+		display.Count = sprintf((char*) display.Msg, "%d ", ptr->val) ;
+		ioctl(lcd_fd, LCD_IOCTL_WRITE, &display) ;
 		ptr = ptr->next ;
 	}
-	printf("NULL\n") ;
+	//printf("NULL\n") ;
 }
 
 // Get the priority of this number
@@ -167,7 +183,7 @@ int get_priority(int val, int rule_cnt){
 			return i ;
 		}
 	}
-	return MAX_RULE_NUMBER ;
+	return rule_cnt ;
 }
 
 #if PXA
@@ -175,38 +191,37 @@ void blink(int led_fd){
 	unsigned short data ;
 	data=LED_ALL_ON ;
     ioctl (led_fd , LED_IOCTL_SET, &data );
-    printf("Turn on all LED lamps\n");
-    sleep (0.1);
+    //printf("Turn on all LED lamps\n");
+    sleep (1);
 
     data=LED_ALL_OFF ;
     ioctl (led_fd , LED_IOCTL_SET, &data );
-    printf("Turn off all LED lamps\n");
-	sleep(0.1) ;
-
+    //printf("Turn off all LED lamps\n");
+	sleep(1) ;
+	
+	data = LED_ALL_ON ;
 	ioctl (led_fd , LED_IOCTL_SET, &data );
-    printf("Turn on all LED lamps\n");
-    sleep (0.1);
+    sleep (1);
 
     data=LED_ALL_OFF ;
     ioctl (led_fd , LED_IOCTL_SET, &data );
-    printf("Turn off all LED lamps\n");
 }
 
 void show_7seg(int lcd_fd, int rule_num){
 	_7seg_info_t data ;
-	ioctl(lcd_fd, _7SEG_IOCTL_ON, NULL) ;
+	//ioctl(lcd_fd, _7SEG_IOCTL_ON, NULL) ;
 	data.Mode = _7SEG_MODE_PATTERN ;
-	data.Which = 15 ;
 	data.Value = seg_data_gen(rule_num) ;
+	data.Which = _7SEG_D5_INDEX | _7SEG_D6_INDEX | _7SEG_D7_INDEX | _7SEG_D8_INDEX ;
 	ioctl(lcd_fd, _7SEG_IOCTL_SET, &data) ;
 	sleep(1) ;
-	ioctl(lcd_fd, _7SEG_IOCTL_OFF, NULL) ;
+	//ioctl(lcd_fd, _7SEG_IOCTL_OFF, NULL) ;
 }
 
 void show_lcd(int lcd_fd, int val){
 	lcd_write_info_t display ;
-	ioctl(lcd_fd, LCD_IOCTL_CLEAR, NULL) ;
-	display.Count = sprintf((char*) display.Msg, "%d", val) ;
+	// ioctl(lcd_fd, LCD_IOCTL_CLEAR, NULL) ;
+	display.Count = sprintf((char*) display.Msg, " %d", val) ;
 	ioctl(lcd_fd, LCD_IOCTL_WRITE, &display) ;
 }
 #endif

@@ -13,11 +13,11 @@ unsigned long code[12] = {
 0x77} ;
 
 unsigned long seg_data_gen(int rule_num){
-	unsigned long data = 0x0877 ;
+	unsigned long data = 0x0850 ; // _r
 	int dig10 = ((rule_num+1)/10)%10 ;
 	int dig1 = (rule_num+1)%10 ;
 	if(dig10 == 0){
-		data = (data<<8) + code[11] ;
+		data = (data<<8) + 0x08 ;
 	}
 	else{
 		data = (data<<8) + code[((rule_num+1)/10)%10] ;
