@@ -5,50 +5,141 @@
 #include <sys/fcntl.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <semaphore.h>
 
-#define PXA 1
-#define MAX_POINT_NUM 81
+#define PXA 0
+#define MAX_AXIS_X 9
+#define MAX_AXIS_Y 9
 
 #if PXA
 #include "asm-arm/arch-pxa/lib/creator_pxa270_lcd.h"
 #endif
 
+// Link list structure
+typedef struct link_list{
+	int val ;
+    int x ;
+    int y ;
+	int priority ;
+	struct  link_list * next ;
+} link_list ;
+//Link list structure
+
 // Function Declare
-void print_cordinators() ;
+void * uber_thread() ;
+void * customer_thread() ;
+link_list * enqueue_safe() ;
+link_list * enqueue() ;
+link_list * dequeue() ;
 
-int main(){
-	char x[MAX_POINT_NUM] ;
-	char y[MAX_POINT_NUM] ;
-	
-	#if PXA
-	int lcd_fd ;
-	if((lcd_fd = open("/dev/lcd", O_RDWR)) < 0){
-		printf("open failed\n") ;
-		exit(-1) ;
+// Global Variables
+link_list * head_request = NULL ;
+link_list * head_uber = NULL ;
+sem_t semaphore ;
+pthread_mutex_t lock;
+
+// main
+int main(int argc, char ** argv){
+    if(argc != 3){
+        printf("Wrong Parameters\nUsage: ./a uberfile customerrequest\n");
+        exit(EXIT_FAILURE) ;
+    }
+    const char * uber_loc_file = argv[1] ;
+    const char * user_request_file = argv[2] ;
+
+    // Initialize Semaphore & mutex
+    sem_init(&semaphore, 0, 0);
+
+    //create two worker threads
+    pthread_t* thread_handles = malloc(3 * sizeof(pthread_t));
+    pthread_create(&thread_handles[0], NULL, customer_thread, (void*) user_request_file);
+    pthread_create(&thread_handles[1], NULL, uber_thread, (void*) uber_loc_file);
+
+    sleep(3) ;
+
+    return 0 ;
+}
+
+void * customer_thread(void * arg){
+    char *val_p = (char *) arg ;
+    int x, y , priority ;
+    FILE * fp = fopen(val_p, "r") ;
+    while(fscanf(fp, "%d %d %d\n", &x, &y, &priority) > 0){
+        printf("val=%d,%d, priority=%d\n", x, y, priority) ;
+        enqueue_safe(head_request, x, y, priority);
+		// show_queue(head) ;
 	}
-	#endif
 
-	print_cordinators(x,y, lcd_fd) ;
-	return 0 ;
+    // enter request from STDIN/Button
 }
 
-#if PXA
-void print_cordinators(char * x, char * y, int lcd_fd){ // covert 9*9 to LCD
-	
-	unsigned short vals[4] ={0xffff, 0xfff0, 0xff00, 0xf000} ; 
-	ioctl(lcd_fd, LCD_IOCTL_CLEAR, NULL) ;
-	lcd_full_image_info_t image ;
-	//image.data[0] = 0xffff ;
-	int i = 0 ;
-	
-
-
-	//for(i=0; i< 225; i++){
-	//	if(i%16==0) image.data[i] = 0xffff ;
-	//	if(i%16==1) image.data[i] = 0x0fff ;
-	//}
-	// ioctl(lcd_fd, LCD_IOCTL_CLEAR, NULL) ;
-	// display.Count = sprintf((char*) display.Msg, " %d", val) ;
-	ioctl(lcd_fd, LCD_IOCTL_DRAW_FULL_IMAGE, &image) ;
+void * uber_thread(void * arg){
+    char *val_p = (char *) arg ;
+    int x, y , priority ;
+    FILE * fp = fopen(val_p, "r") ;
+    while(fscanf(fp, "%d %d\n", &x, &y) > 0){
+        printf("val=%d,%d\n", x, y) ;
+        head_uber = enqueue(head_uber, x, y);
+		// show_queue(head) ;
+	}
+    while (1) {
+        sem_wait(&semaphore) ;
+        pthread_mutex_lock(&lock);
+        printf("%s\n", "Find Match");
+        head_uber = dequeue(head_uber) ;
+        head_request = dequeue(head_request) ;
+        printf("%s\n", "---------------------");
+        pthread_mutex_unlock(&lock);
+    }
 }
-#endif
+
+link_list * enqueue_safe(link_list * head, int x, int y, int priority){
+    pthread_mutex_lock(&lock);
+    head_request = enqueue(head, x, y, priority) ;
+    pthread_mutex_unlock(&lock);
+    sem_post(&semaphore);
+}
+
+// Enqueue
+link_list * enqueue(link_list * head, int x, int y, int priority){
+	link_list * node = (link_list*) malloc(sizeof(link_list)) ;
+	node->x = x ;
+    node->y = y ;
+	node->priority = priority ;
+	node->next = NULL ;
+	if(head == NULL){
+		return node ;
+	}
+	else{
+		if(priority < head->priority){
+			node->next = head ;
+			return node ;
+		}
+		link_list * ptr = head ;
+		while(ptr->next != NULL){
+			// Check priority
+			if(priority < (ptr->next)->priority){
+				node->next = ptr->next ;
+				ptr->next = node ;
+				return head ;
+			}
+			ptr = ptr->next ;
+		}
+		// Next node is NULL
+		ptr->next = node ;
+	}
+	return head ;
+}
+
+// Dequeue is not done....
+link_list * dequeue(link_list * head){
+	if(head != NULL){
+		printf("%d,%d\n", head->x, head->y) ;
+		return head->next ;
+	}
+	else{
+		printf("Queue is empty.\n") ;
+		return head ;
+	}
+}
