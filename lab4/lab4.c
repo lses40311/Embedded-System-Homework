@@ -50,12 +50,14 @@ int main(int argc, char ** argv){
 
     // Initialize Semaphore & mutex
     sem_init(&semaphore, 0, 0);
+    //semaphore =sem_open("test",O_CREAT) ;
 
     //create two worker threads
     pthread_t* thread_handles = malloc(3 * sizeof(pthread_t));
     pthread_create(&thread_handles[0], NULL, customer_thread, (void*) user_request_file);
     pthread_create(&thread_handles[1], NULL, uber_thread, (void*) uber_loc_file);
 
+    // Prevent the main thread from terminated.
     sleep(3) ;
 
     return 0 ;
@@ -69,7 +71,7 @@ void * customer_thread(void * arg){
         printf("val=%d,%d, priority=%d\n", x, y, priority) ;
         enqueue_safe(head_request, x, y, priority);
 		// show_queue(head) ;
-	}
+    }
 
     // enter request from STDIN/Button
 }
@@ -81,16 +83,19 @@ void * uber_thread(void * arg){
     while(fscanf(fp, "%d %d\n", &x, &y) > 0){
         printf("val=%d,%d\n", x, y) ;
         head_uber = enqueue(head_uber, x, y);
-		// show_queue(head) ;
+		//show_queue(head) ;
 	}
+    int sem_val ;
     while (1) {
         sem_wait(&semaphore) ;
+        sem_val = sem_getvalue(&semaphore, &sem_val) ;
         pthread_mutex_lock(&lock);
-        printf("%s\n", "Find Match");
+        printf("%s, %d\n", "Find Matchd", sem_val);
         head_uber = dequeue(head_uber) ;
         head_request = dequeue(head_request) ;
         printf("%s\n", "---------------------");
         pthread_mutex_unlock(&lock);
+        getchar() ;
     }
 }
 
