@@ -29,15 +29,15 @@ typedef struct link_list{
 // Function Declare
 void * uber_thread() ;
 void * customer_thread() ;
-link_list * enqueue_safe() ;
+void enqueue_safe() ;
 link_list * enqueue() ;
 link_list * dequeue() ;
 
 // Global Variables
 link_list * head_request = NULL ;
 link_list * head_uber = NULL ;
-sem_t semaphore ;
-pthread_mutex_t lock;
+sem_t * semaphore ;
+pthread_mutex_t lock, navigate_sig;
 
 // main
 int main(int argc, char ** argv){
@@ -49,16 +49,30 @@ int main(int argc, char ** argv){
     const char * user_request_file = argv[2] ;
 
     // Initialize Semaphore & mutex
-    sem_init(&semaphore, 0, 0);
-    //semaphore =sem_open("test",O_CREAT) ;
+    //sem_init(&semaphore, 0, 0);
+    semaphore = sem_open("test",O_CREAT, 0644, 0) ;
+    pthread_mutex_init(&lock, NULL) ;
+    pthread_mutex_init(&navigate_sig, NULL) ;
+    pthread_mutex_lock(&navigate_sig) ;
 
     //create two worker threads
     pthread_t* thread_handles = malloc(3 * sizeof(pthread_t));
     pthread_create(&thread_handles[0], NULL, customer_thread, (void*) user_request_file);
     pthread_create(&thread_handles[1], NULL, uber_thread, (void*) uber_loc_file);
+   
+    // Create a navigation thread
+    while(1){ 
+        pthread_mutex_lock(&navigate_sig) ;
+        printf("Create navigation thread\n") ;
+        pthread_mutex_unlock(&navigate_sig) ;
+    }
 
     // Prevent the main thread from terminated.
-    sleep(3) ;
+    sleep(300) ;
+    
+    // Close & unlink sem_t
+    sem_unlink("test") ;
+    sem_close(semaphore) ;
 
     return 0 ;
 }
@@ -72,8 +86,20 @@ void * customer_thread(void * arg){
         enqueue_safe(head_request, x, y, priority);
 		// show_queue(head) ;
     }
-
+    
     // enter request from STDIN/Button
+    while(1){
+        #if PXA
+        // From Button
+
+        #else
+        // From STDIN
+        scanf("%d %d %d", &x, &y, &priority) ;
+        printf("Read val=%d,%d with priority=%d\n", x, y, priority) ;
+        #endif
+        
+        enqueue_safe(head_request, x, y, priority);
+    }
 }
 
 void * uber_thread(void * arg){
@@ -87,23 +113,26 @@ void * uber_thread(void * arg){
 	}
     int sem_val ;
     while (1) {
-        sem_wait(&semaphore) ;
-        sem_val = sem_getvalue(&semaphore, &sem_val) ;
+        printf("waiting for request\n") ;
+        sem_wait(semaphore) ;
+        //sem_val = sem_getvalue(&semaphore, &sem_val) ;
         pthread_mutex_lock(&lock);
+        printf("%s\n", "---------------------");
         printf("%s, %d\n", "Find Matchd", sem_val);
         head_uber = dequeue(head_uber) ;
         head_request = dequeue(head_request) ;
         printf("%s\n", "---------------------");
         pthread_mutex_unlock(&lock);
-        getchar() ;
+        pthread_mutex_unlock(&navigate_sig) ;
+        pthread_mutex_lock(&navigate_sig) ;
     }
 }
 
-link_list * enqueue_safe(link_list * head, int x, int y, int priority){
+void enqueue_safe(link_list * head, int x, int y, int priority){
     pthread_mutex_lock(&lock);
     head_request = enqueue(head, x, y, priority) ;
     pthread_mutex_unlock(&lock);
-    sem_post(&semaphore);
+    sem_post(semaphore);
 }
 
 // Enqueue
