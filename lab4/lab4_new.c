@@ -52,8 +52,11 @@ int main(){
     unsigned short key = 0 ;
     ioctl(lcd_fd, KEY_IOCTL_CLEAR, key) ;
     printf("Init complete, press a buttom to start the program.\n") ;
-    ioctl(lcd_fd, KEY_IOCTL_WAIT_CHAR, &key) ;
-    printf("%hu\n", key) ;
+    int i = ;
+    for(i =0; i<4; i++){
+        ioctl(lcd_fd, KEY_IOCTL_WAIT_CHAR, &key) ;
+        printf("%hu\n", key) ;
+    }
     //ioctl(lcd_fd, LCD_IOCTL_CLEAR, NULL) ;
     printf("Program Start.\n") ;
     #endif
