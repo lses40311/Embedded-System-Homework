@@ -9,6 +9,7 @@
 #include <semaphore.h>
 
 #define PXA 0
+#define newUBER 0
 #define MAX_AXIS_X 9
 #define MAX_AXIS_Y 9
 
@@ -29,6 +30,7 @@ typedef struct link_list{
 // Function Declare
 void * uber_thread() ;
 void * customer_thread() ;
+void * driving_thread() ;
 void enqueue_safe() ;
 link_list * enqueue() ;
 link_list * dequeue() ;
@@ -38,6 +40,7 @@ link_list * head_request = NULL ;
 link_list * head_uber = NULL ;
 sem_t * semaphore ;
 pthread_mutex_t lock, navigate_sig;
+int * paired_data ;
 
 // main
 int main(int argc, char ** argv){
@@ -47,6 +50,7 @@ int main(int argc, char ** argv){
     }
     const char * uber_loc_file = argv[1] ;
     const char * user_request_file = argv[2] ;
+    paired_data = malloc(4 * sizeof(int));
 
     // Initialize Semaphore & mutex
     //sem_init(&semaphore, 0, 0);
@@ -64,6 +68,8 @@ int main(int argc, char ** argv){
     while(1){ 
         pthread_mutex_lock(&navigate_sig) ;
         printf("Create navigation thread\n") ;
+        pthread_create(&thread_handles[3], NULL, driving_thread, (void*) paired_data);
+        pthread_detach(thread_handles[3]) ;
         pthread_mutex_unlock(&navigate_sig) ;
     }
 
@@ -94,6 +100,7 @@ void * customer_thread(void * arg){
 
         #else
         // From STDIN
+        printf("Enter request:\n") ;
         scanf("%d %d %d", &x, &y, &priority) ;
         printf("Read val=%d,%d with priority=%d\n", x, y, priority) ;
         #endif
@@ -104,28 +111,56 @@ void * customer_thread(void * arg){
 
 void * uber_thread(void * arg){
     char *val_p = (char *) arg ;
-    int x, y , priority ;
+    int x, y , priority, uber_cnt ;
+    uber_cnt = 0 ;
     FILE * fp = fopen(val_p, "r") ;
     while(fscanf(fp, "%d %d\n", &x, &y) > 0){
         printf("val=%d,%d\n", x, y) ;
         head_uber = enqueue(head_uber, x, y);
-		//show_queue(head) ;
+		uber_cnt++ ;
+        //show_queue(head) ;
 	}
     int sem_val ;
     while (1) {
-        printf("waiting for request\n") ;
         sem_wait(semaphore) ;
         //sem_val = sem_getvalue(&semaphore, &sem_val) ;
         pthread_mutex_lock(&lock);
         printf("%s\n", "---------------------");
-        printf("%s, %d\n", "Find Matchd", sem_val);
-        head_uber = dequeue(head_uber) ;
-        head_request = dequeue(head_request) ;
+        //printf("%s, %d\n", "Find Matchd", sem_val);
+        
+        #if newUBER
+        if(uber_cnt <= 0){
+            // Need more UBER
+            printf("Give me more uber:\n") ;
+            scanf("%d %d", &x, &y) ;
+            head_uber = enqueue(head_uber, x, y);
+            uber_cnt++ ;
+        }
+        #endif
+        head_uber = dequeue(head_uber, 0) ;
+        head_request = dequeue(head_request, 2) ;
+        uber_cnt-- ;
         printf("%s\n", "---------------------");
         pthread_mutex_unlock(&lock);
-        pthread_mutex_unlock(&navigate_sig) ;
+        pthread_mutex_unlock(&navigate_sig) ; // Start Driving Thread
         pthread_mutex_lock(&navigate_sig) ;
     }
+}
+
+void * driving_thread(void * arg){
+    int *val_p = (int *) arg ;
+    int origin_x , origin_y, dest_x, dest_y ;
+    printf("%d,%d -> %d,%d ==> ", val_p[0], val_p[1], val_p[2], val_p[3]) ;
+    printf("%d,%d -> %d,%d -> %d,%d\n", val_p[0], val_p[1],val_p[0], val_p[3],  val_p[2], val_p[3]) ;
+    
+    #if PXA
+    lcd_write_info_t display ;
+    display.Count = sprintf((char*) display.Msg, "%d,%d -> %d,%d ==> %d,%d -> %d,%d -> %d,%d\n", 
+        val_p[0], val_p[1], val_p[2], val_p[3], val_p[0], val_p[1],val_p[0], val_p[3], val_p[2], val_p[3]) ;
+    ioctl(lcd_fd, LCD_IOCTL_WRITE, &display) ;
+    #endif
+    
+    pthread_exit( NULL );
 }
 
 void enqueue_safe(link_list * head, int x, int y, int priority){
@@ -166,10 +201,12 @@ link_list * enqueue(link_list * head, int x, int y, int priority){
 	return head ;
 }
 
-// Dequeue is not done....
-link_list * dequeue(link_list * head){
+// Dequeue
+link_list * dequeue(link_list * head, int idx){
 	if(head != NULL){
-		printf("%d,%d\n", head->x, head->y) ;
+		//printf("%d,%d\n", head->x, head->y) ;
+        paired_data[idx] = head->x ;
+        paired_data[idx+1] = head->y ;
 		return head->next ;
 	}
 	else{
