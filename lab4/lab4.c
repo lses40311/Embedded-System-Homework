@@ -44,6 +44,7 @@ pthread_mutex_t lock, navigate_sig;
 int * input_data ;
 link_list * paired_data ;
 
+// Handles Ctrl + c
 void intHandler(int dummy) {
     sem_close(uber_sem);
     sem_close(request_sem) ;
@@ -114,7 +115,6 @@ void * customer_thread(){
             #else
             scanf("%hu", &key) ;
             #endif
-            printf("read: %d\n", (int)key) ;
             requests[i] = (int)key;
         }
         enqueue_safe(&head_request, requests, priority);
@@ -165,15 +165,13 @@ void * driving_thread(){
     str = get_path_str(request.data[0], request.data[1], request.data[2], request.data[3]) ;
     printf("%s\n", str );
     printf("%s\n", "---------------------");
+    
     #if PXA
-    // need modify
     lcd_write_info_t display ;
-    display.Count = sprintf((char*) display.Msg, "%d,%d -> %d,%d ==> %d,%d -> %d,%d -> %d,%d\n",
-        val_p[0], val_p[1], val_p[2], val_p[3], val_p[0], val_p[1],val_p[0], val_p[3], val_p[2], val_p[3]) ;
+    display.Count = sprintf((char*) display.Msg, str) ;
     ioctl(lcd_fd, LCD_IOCTL_WRITE, &display) ;
     #endif
 
-    // add enqueue() to return the used uber.
     int * uber_return = malloc(4*sizeof(int)) ;
     uber_return[0] = request.data[2] ;
     uber_return[1] = request.data[3] ;
