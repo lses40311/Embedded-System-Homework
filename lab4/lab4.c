@@ -9,7 +9,7 @@
 #include <signal.h>
 #include <semaphore.h>
 
-#define PXA 0
+#define PXA 1
 #define newUBER 0
 #define MAX_AXIS_X 9
 #define MAX_AXIS_Y 9
@@ -39,11 +39,13 @@ link_list * dequeue() ;
 // Global Variables
 link_list * head_request = NULL ;
 link_list * head_uber = NULL ;
-sem_t * request_sem, *uber_sem ;
+sem_t request_sem, uber_sem ;
 pthread_mutex_t lock, navigate_sig;
 int * input_data ;
 link_list * paired_data ;
+int lcd_fd ;
 
+/*
 // Handles Ctrl + c
 void intHandler(int dummy) {
     sem_close(uber_sem);
@@ -52,6 +54,7 @@ void intHandler(int dummy) {
     sem_unlink("uber") ;
     exit(0) ;
 }
+*/
 
 int main(int argc, char ** argv){
     if(argc != 2){
@@ -60,19 +63,19 @@ int main(int argc, char ** argv){
     }
     const char * uber_loc_file = argv[1] ;
     paired_data = malloc(2 * sizeof(link_list));
-    signal(SIGINT, intHandler);
+    //signal(SIGINT, intHandler);
 
     // Initialize Semaphore & mutex
-    //sem_init(&request_sem, 0, 0); // another way to open a semaphore
-    const char * name = "test";
-    request_sem = sem_open(name, O_CREAT, 0644, 0) ;
+    sem_init(&request_sem, 0, 0); // another way to open a semaphore
+    //const char * name = "test";
+    //request_sem = sem_open(name, O_CREAT, 0644, 0) ;
     pthread_mutex_init(&lock, NULL) ;
     pthread_mutex_init(&navigate_sig, NULL) ;
     pthread_mutex_lock(&navigate_sig) ;
 
     #if PXA
     // Initialize PXA I/O
-    int lcd_fd ;
+	unsigned short key ;
     if((lcd_fd = open("/dev/lcd", O_RDWR)) < 0){
         printf("open failed\n") ;
         exit(-1) ;
@@ -115,10 +118,12 @@ void * customer_thread(){
             #else
             scanf("%hu", &key) ;
             #endif
-            requests[i] = (int)key;
-        }
+            requests[i] = (int)((key&0xff)-48);
+			//printf("==%hu\n", key&0xff) ;
+        	printf("read %d\n", requests[i]) ;
+		}
         enqueue_safe(&head_request, requests, priority);
-        sem_post(request_sem);
+        sem_post(&request_sem);
     }
 
 }
@@ -137,14 +142,15 @@ void * uber_thread(void * arg){
 	}
 
     // Initialize Semaphore with uber number
-    //uber_sem = sem_open("uber",O_CREAT, 0644, uber_cnt) ;
-    if ((uber_sem = sem_open("uber", O_CREAT, 0644, uber_cnt)) == SEM_FAILED ) {
-        perror("sem_open");
-        exit(EXIT_FAILURE);
-    }
+    sem_init(&uber_sem, 0, uber_cnt) ;
+	//uber_sem = sem_open("uber",O_CREAT, 0644, uber_cnt) ;
+    //if ((uber_sem = sem_open("uber", O_CREAT, 0644, uber_cnt)) == SEM_FAILED ) {
+    //    perror("sem_open");
+    //    exit(EXIT_FAILURE);
+    //}
     while (1) {
-        sem_wait(request_sem) ;
-        sem_wait(uber_sem) ;
+        sem_wait(&request_sem) ;
+        sem_wait(&uber_sem) ;
         pthread_mutex_lock(&lock);
         printf("%s\n", "Find a car.");
         head_uber = dequeue(head_uber, 0) ;
@@ -160,16 +166,19 @@ void * driving_thread(){
     uber = paired_data[0] ;
     request = paired_data[1] ;
     printf("%s\n", "---------------------");
-    char * str = get_path_str(uber.data[0], uber.data[1], request.data[0], request.data[1]);
-    printf("%s\n", str );
-    str = get_path_str(request.data[0], request.data[1], request.data[2], request.data[3]) ;
-    printf("%s\n", str );
+    char * str1 = get_path_str(uber.data[0], uber.data[1], request.data[0], request.data[1]);
+    printf("%s\n", str1 );
+    char * str2 = get_path_str(request.data[0], request.data[1], request.data[2], request.data[3]) ;
+    printf("%s\n", str2 );
     printf("%s\n", "---------------------");
     
     #if PXA
+	ioctl(lcd_fd, LCD_IOCTL_CLEAR, NULL) ;
     lcd_write_info_t display ;
-    display.Count = sprintf((char*) display.Msg, str) ;
+    display.Count = sprintf((char*) display.Msg, str1) ;
     ioctl(lcd_fd, LCD_IOCTL_WRITE, &display) ;
+	display.Count = sprintf((char*) display.Msg, str2) ;
+	ioctl(lcd_fd, LCD_IOCTL_WRITE, &display) ;
     #endif
 
     int * uber_return = malloc(4*sizeof(int)) ;
@@ -178,9 +187,10 @@ void * driving_thread(){
     uber_return[2] = 0 ;
     uber_return[3] = 0 ;
     enqueue_safe(&head_uber, uber_return, 0) ;
-    sem_post(uber_sem) ;
+    sem_post(&uber_sem) ;
 
-    free(str) ;
+    free(str1) ;
+	free(str2) ;
     free(uber_return) ;
     pthread_exit(NULL);
 }
@@ -237,8 +247,8 @@ link_list * enqueue(link_list * head, int * vals, int priority){
 
 char * get_path_str(int src_x, int src_y, int dest_x, int dest_y){
     char * str = malloc(50*sizeof(char)) ;
-    int len = sprintf(str, "%d,%d -> %d,%d ==> ", src_x, src_y, dest_x, dest_y) ;
-    sprintf(str+len, "%d,%d -> %d,%d -> %d,%d",src_x, src_y, src_x, dest_y, dest_x, dest_y) ;
+    int len = sprintf(str, "%d,%d->%d,%d==>", src_x, src_y, dest_x, dest_y) ;
+    sprintf(str+len, "%d,%d->%d,%d->%d,%d\n",src_x, src_y, src_x, dest_y, dest_x, dest_y) ;
     return str ;
 }
 
