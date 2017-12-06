@@ -101,13 +101,17 @@ int main(int argc, char ** argv){
     while(1){
         pthread_mutex_lock(&navigate_sig) ;
         printf("Create driving thread\n") ;
-        pthread_create(&thread_handles[3], NULL, driving_thread, NULL);
+        link_list * args = malloc(2 * sizeof(link_list));
+        memcpy(args, paired_data, 2*sizeof(link_list)) ;
+        if (pthread_create(&thread_handles[3], NULL, driving_thread, args)){
+            free(args) ;
+        }
         pthread_detach(thread_handles[3]) ;
-        //pthread_mutex_unlock(&navigate_sig) ;
+        pthread_mutex_unlock(&navigate_sig) ;
     }
 
     // Prevent the main thread from terminated.
-    sleep(300) ;
+    //sleep(300) ;
 
     return 0 ;
 }
@@ -163,18 +167,21 @@ void * uber_thread(void * arg){
         my_sem_wait(uber_sem, 0);
         pthread_mutex_lock(&lock);
         printf("%s\n", "Find a car.");
-        head_uber = dequeue(head_uber, 0) ;
-        head_request = dequeue(head_request, 1) ;
+        head_uber = dequeue(head_uber, paired_data, 0) ;
+        head_request = dequeue(head_request, paired_data, 1) ;
         pthread_mutex_unlock(&lock);
         pthread_mutex_unlock(&navigate_sig) ; // Start Driving Thread
-        //pthread_mutex_lock(&navigate_sig) ;
+        pthread_mutex_lock(&navigate_sig) ;
     }
 }
 
-void * driving_thread(){
+void * driving_thread(void * args){
     link_list uber, request ;
-    uber = paired_data[0] ;
-    request = paired_data[1] ;
+    link_list * tmp = (link_list *) args ;
+    //uber = paired_data[0] ;
+    //request = paired_data[1] ;
+    uber = tmp[0] ;
+    request = tmp[1] ;
     printf("%s\n", "---------------------");
     char * str1 = get_path_str(uber.data[0], uber.data[1], request.data[0], request.data[1]);
     printf("%s\n", str1 );
@@ -206,10 +213,10 @@ void * driving_thread(){
     pthread_exit(NULL);
 }
 
-link_list * dequeue(link_list * head, int idx){
+link_list * dequeue(link_list * head, link_list * result, int idx){
 	if(head != NULL){
         show_queue(head) ;
-        paired_data[idx] = *head ;
+        result[idx] = *head ;
 		return head->next ;
 	}
 	else{
