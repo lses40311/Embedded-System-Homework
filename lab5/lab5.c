@@ -11,7 +11,7 @@
 #include "seg_show_number.h"
 
 
-#define PXA 0
+#define PXA 1
 #define newUBER 0
 #define MAX_AXIS_X 9
 #define MAX_AXIS_Y 9
@@ -44,6 +44,7 @@ int my_sem_remove() ;
 int my_sem_post() ;
 int my_sem_wait() ;
 void blink() ;
+void show_7seg() ;
 
 // Global Variables
 link_list * head_request = NULL ;
@@ -77,7 +78,7 @@ int main(int argc, char ** argv){
     paired_data = malloc(2 * sizeof(link_list));
 
     // remove semaphore if system interupted
-    signal(SIGINT, intHandler);
+    //signal(SIGINT, intHandler);
 
     // Initialize Semaphore & mutex
     //sem_init(&request_sem, 0, 0); // another way to open a semaphore
@@ -109,7 +110,7 @@ int main(int argc, char ** argv){
         exit(-1) ;
     }
     ioctl(lcd_fd, _7SEG_IOCTL_ON, NULL) ;
-    printf("LCD Initialization Success.\n") ;
+	printf("LCD Initialization Success.\n") ;
     #endif
 
     //create two worker threads
@@ -124,9 +125,13 @@ int main(int argc, char ** argv){
         printf("Create driving thread\n") ;
         link_list * args = malloc(2 * sizeof(link_list));
         memcpy(args, paired_data, 2*sizeof(link_list)) ;
-        if (pthread_create(&thread_handles[3], NULL, driving_thread, args)){
+        if (pthread_create(&thread_handles[3], NULL, driving_thread, args) >= 0){
             driving_thread_num ++ ;
-            free(args) ;
+			printf("Successfully create driving thread#%d\n", driving_thread_num) ;
+			#if PXA
+            show_7seg(lcd_fd, driving_thread_num) ;
+			#endif
+			//free(args) ;
         }
         pthread_detach(thread_handles[3]) ;
         pthread_mutex_unlock(&navigate_sig) ;
@@ -228,12 +233,12 @@ void * driving_thread(void * args){
         if (next_intersection_id == current_intersection_id){
             sprintf(str, "->%d,%d ", x[i], y[i]) ;
             target_str = strcat( target_str, str ) ;
-            //printf("%s\n", target_str) ;
+            printf("%s\n", target_str) ;
             continue ;
         }
         while((my_sem_wait(intersection_sem, next_intersection_id, IPC_NOWAIT) < 0)) {
             target_str = strcat( target_str, "->wait" ) ;
-            //printf("%s\n", target_str) ;
+            printf("%s\n", target_str) ;
             #if PXA
             blink(lcd_fd) ; // 4 seconds
             #else
@@ -243,9 +248,11 @@ void * driving_thread(void * args){
         my_sem_post(intersection_sem, current_intersection_id) ;
         sprintf(str, "->%d,%d ", x[i], y[i]) ;
         target_str = strcat( target_str, str ) ;
-        //printf("%s\n", target_str) ;
+        printf("%s\n", target_str) ;
     }
+	printf("--------------------------Car %d done-------------------------------\n", car_id) ;
     printf("%s\n", target_str) ;
+	printf("-------------------------------------------------------------------\n", car_id) ;
 
     int * uber_return = malloc(4*sizeof(int)) ;
     uber_return[0] = request.data[2] ;
@@ -259,7 +266,11 @@ void * driving_thread(void * args){
     free(target_str) ;
     free(str) ;
     free(uber_return) ;
-    pthread_exit(NULL);
+    driving_thread_num-- ;
+	#if PXA
+	show_7seg(lcd_fd, driving_thread_num) ;
+	#endif
+	pthread_exit(NULL);
 }
 
 link_list * dequeue(link_list * head, link_list * result, int idx){
@@ -380,7 +391,7 @@ int my_sem_wait(int s, int sem_idx, int flag){
     sop.sem_flg = flag ;
     //printf("waiting for%d\n", sem_idx);
     if(semop(s, &sop, 1) < 0){
-        printf("ERROR waiting sem %d, idx=%d\n", s, sem_idx);
+        printf("Can't wait sem %d, idx=%d\n", s, sem_idx);
         return -1 ;
     }
     else{
@@ -417,7 +428,7 @@ void show_7seg(int lcd_fd, int number){
 	data.Value = seg_data_gen(number) ;
 	data.Which = _7SEG_D5_INDEX | _7SEG_D6_INDEX | _7SEG_D7_INDEX | _7SEG_D8_INDEX ;
 	ioctl(lcd_fd, _7SEG_IOCTL_SET, &data) ;
-	sleep(1) ;
+	//sleep(1) ;
 	//ioctl(lcd_fd, _7SEG_IOCTL_OFF, NULL) ;
 }
 #endif
