@@ -80,7 +80,7 @@ int main(int argc, char ** argv){
     paired_data = malloc(2 * sizeof(link_list));
 
     // remove semaphore if system interupted
-    signal(SIGINT, intHandler);
+    //signal(SIGINT, intHandler);
 
     // Initialize Semaphore & mutex
     if((request_sem = my_sem_init(MY_KEY, 1, 0)) < 0){
@@ -292,10 +292,12 @@ void * center_thread(){
     int ret ;
     char buf[1024] ;
     while(1){
-        sleep(30) ;
+		memset(buf, 0, 1024) ;
+        sleep(45) ;
         ret = read(pfd[0], buf, 1024) ;
         printf("--------------------------Center Message-------------------------------\n") ;
-        printf("%s", buf) ;
+        printf("Read %d chars from pipe.\n", ret) ;
+		printf("%s", buf) ;
         printf("-----------------------------------------------------------------------\n") ;
     }
 }
