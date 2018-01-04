@@ -15,13 +15,15 @@ void *threadPOS(void *threadid)
 		queue<char> in_commend;
 		
 		pthread_mutex_lock(&POS_recv_List_lock);
-		for (int i = 0; i < POS_recv_List.size(); i++){
+		int pos_loop_num = POS_recv_List.size();
+		for (int i = 0; i < pos_loop_num; i++){
 			in_commend.push(POS_recv_List.front());
 			POS_recv_List.pop();
 		}
 		pthread_mutex_unlock(&POS_recv_List_lock);
 		
-		for (int i = 0; i < in_commend.size(); i++){
+		int comm_loop_num = in_commend.size();
+		for (int i = 0; i < comm_loop_num; i++){
 			
 			if (in_commend.front() == '*'){	// Clear
 				show_str = "";
@@ -49,7 +51,8 @@ void *threadPOS(void *threadid)
 						}
 						else{
 							int num = 0;
-							for (int j = 0; j < queue_num.size(); j++){
+							int q_loop_num = queue_num.size();
+							for (int j = 0; j < q_loop_num; j++){
 								int digit = queue_num.size()-1;
 								int ten_pow = 1;
 								for (int k = 0; k < digit; k++){
@@ -116,7 +119,8 @@ void *threadPOS(void *threadid)
 						case 'D':	// Confirm order
 							if (is_start == false){
 								pthread_mutex_lock(&Order_List_lock);
-								for (int j = 0; j < queue_list.size(); j++){
+								int loop_num = queue_list.size();
+								for (int j = 0; j < loop_num; j++){
 									Order_recv_List.push(queue_list.front());
 									queue_list.pop();
 								}
@@ -132,12 +136,16 @@ void *threadPOS(void *threadid)
 					}
 				}
 			}
+			
 			in_commend.pop();
 		}
 		
 		pthread_mutex_lock(&POS_send_List_lock);
 		POS_send_List = show_str;
 		pthread_mutex_unlock(&POS_send_List_lock);
+		
+		
+		usleep(POS_WAIT_TIME);
 	}
 	
 	pthread_exit(NULL);

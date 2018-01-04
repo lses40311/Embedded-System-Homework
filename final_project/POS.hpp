@@ -7,8 +7,12 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <unistd.h>
 
 #include "global.hpp"
+
+
+#define POS_WAIT_TIME 50000
 
 using namespace std;
 

@@ -13,7 +13,7 @@
 
 using namespace std;
 
-#define BUFSIZE 100
+#define BUFSIZE 500
 #define WAIT_TIME 100000
 
 

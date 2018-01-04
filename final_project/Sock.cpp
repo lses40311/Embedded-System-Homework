@@ -5,9 +5,11 @@ queue<string> vec_send_str;
 pthread_mutex_t vec_recv_lock;
 queue<string> vec_recv_str;
 
-int sock_type_idx = -1;
 
 void* ClientHandler(void *thread_in){
+	
+	int sock_type_idx = -1;
+	
 	pthread_detach(pthread_self()); 
 
 	THREAD_OBJ* thr_obj = (THREAD_OBJ*) thread_in;
@@ -29,7 +31,7 @@ void* ClientHandler(void *thread_in){
 
 	if ((n = write(connfd, snd_str.c_str(), n)) < 0)
 		errexit("Error: write back ID\n");
-	
+
 	if (snd_str.compare("MC") == 0){
 		cout << "MC online" << endl;
 		sock_type_idx = 1;
@@ -74,7 +76,7 @@ void* ClientHandler(void *thread_in){
 				if (recv_str[i] != 'e')
 					WL_recv_List.push(recv_str[i]);
 			}
-			pthread_mutex_lock(&WL_recv_List_lock);
+			pthread_mutex_unlock(&WL_recv_List_lock);
 		}
 		else if (sock_type_idx == 3){
 			pthread_mutex_lock(&POS_recv_List_lock);
@@ -82,12 +84,12 @@ void* ClientHandler(void *thread_in){
 				if (recv_str[i] != 'e')
 					POS_recv_List.push(recv_str[i]);
 			}
-			pthread_mutex_lock(&POS_recv_List_lock);
+			pthread_mutex_unlock(&POS_recv_List_lock);
 		}
 		
 		usleep(WAIT_TIME);
 		
-		
+
 		
 		string send_str("");
 		
@@ -99,12 +101,12 @@ void* ClientHandler(void *thread_in){
 		else if (sock_type_idx == 2){
 			pthread_mutex_lock(&WL_recv_List_lock);
 			send_str = WL_send_List;
-			pthread_mutex_lock(&WL_recv_List_lock);
+			pthread_mutex_unlock(&WL_recv_List_lock);
 		}
 		else if (sock_type_idx == 3){
 			pthread_mutex_lock(&POS_recv_List_lock);
 			send_str = POS_send_List;
-			pthread_mutex_lock(&POS_recv_List_lock);
+			pthread_mutex_unlock(&POS_recv_List_lock);
 		}
 		
 		if (send_str.size() == 0){
