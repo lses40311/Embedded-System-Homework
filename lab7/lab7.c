@@ -35,7 +35,7 @@ typedef struct link_list{
 void * uber_thread() ;
 void * customer_thread() ;
 void * driving_thread() ;
-void * center_thread() ;
+//void * center_thread() ;
 void enqueue_safe() ;
 void show_queue() ;
 char * get_path_str() ;
@@ -61,10 +61,23 @@ int pfd[2] ;
 int request_sem, uber_sem, intersection_sem ; // originally sem_t
 int driving_thread_num ;
 int time_cnt ;
+int pid ;
 
 // Timer signal
 void timer_handler(int signum) {
     time_cnt ++ ;
+}
+
+//Handles SIGUSR1
+void handler(int signo, siginfo_t *info, void *context){
+    int ret ;
+    char buf[1024] ;
+	memset(buf, 0, 1024) ;
+    ret = read(pfd[0], buf, 1024) ;
+    printf("--------------------------Center Message-------------------------------\n") ;
+    printf("Read %d chars from pipe.\n", ret) ;
+	printf("%s", buf) ;
+    printf("-----------------------------------------------------------------------\n") ;
 }
 
 // Handles Ctrl + c
@@ -81,15 +94,13 @@ int trans_position(int x, int y){
 
 int main(int argc, char ** argv){
     time_cnt = 0 ;
+    pid = getpid() ;
     if(argc != 2){
         printf("Wrong Parameters\nUsage: ./a uberfile\n");
         exit(EXIT_FAILURE) ;
     }
     const char * uber_loc_file = argv[1] ;
     paired_data = malloc(2 * sizeof(link_list));
-
-    // remove semaphore if system interupted
-    //signal(SIGINT, intHandler);
 
     // Initialize Semaphore & mutex
     if((request_sem = my_sem_init(MY_KEY, 1, 0)) < 0){
@@ -115,12 +126,29 @@ int main(int argc, char ** argv){
     pthread_mutex_lock(&navigate_start) ;
     pthread_mutex_lock(&data_passing_done) ;
 
-    // Setting signal
+    // Remove semaphore if system interupted
+    signal(SIGINT, intHandler);
+
+    // Setting Timer signal
     struct sigaction sa ;
     struct itimerval timer ;
     memset(&sa, 0, sizeof(sa)) ;
     sa.sa_handler = &timer_handler ;
-    sigaction () ;
+    sigaction (SIGALRM, &sa, NULL) ;
+    // Set initial timeval
+    timer.it_value.tv_sec = 1;
+    timer.it_value.tv_usec = 0;
+    // Set repeat itimerval
+    timer.it_interval.tv_sec = 1;
+    timer.it_interval.tv_usec = 0;
+    setitimer(ITIMER_REAL, &timer, NULL) ;
+
+    // Setting user-defined signal
+    struct sigaction my_action ;
+    memset(&my_action, 0, sizeof(my_action)) ;
+    my_action.sa_flags = SA_SIGINFO ;
+    my_action.sa_sigaction = handler ;
+    sigaction (SIGUSR1, &my_action , NULL);
 
     // Creating pipe
     if (pipe(pfd) == -1){
@@ -142,7 +170,7 @@ int main(int argc, char ** argv){
     pthread_t* thread_handles = malloc(4 * sizeof(pthread_t));
     pthread_create(&thread_handles[0], NULL, customer_thread, NULL);
     pthread_create(&thread_handles[1], NULL, uber_thread, (void*) uber_loc_file );
-    pthread_create(&thread_handles[3], NULL, center_thread, NULL);
+    //pthread_create(&thread_handles[3], NULL, center_thread, NULL);
 
     // Create a navigation thread
     driving_thread_num = 0 ;
@@ -226,9 +254,10 @@ void * uber_thread(void * arg){
 }
 
 void * driving_thread(void * args){
-    printf("%s\n", "driving thread");
     int sleep_time = 2 ;
     int i ;
+    int start, end ;
+    start = time_cnt ;
     link_list uber, request ;
     link_list * tmp = (link_list *) args ;
     uber = tmp[0] ;
@@ -279,11 +308,15 @@ void * driving_thread(void * args){
         target_str = strcat( target_str, str ) ;
         printf("%s\n", target_str) ;
     }
+    end = time_cnt ;
 	printf("--------------------------Car %d done-------------------------------\n", car_id) ;
+    printf("Driving thread message: \n");
     sprintf(target_str, "%s\n", target_str) ;
     printf("%s", target_str) ;
+    printf("timer = %d\n", end-start) ;
     write(pfd[1], target_str, strlen(target_str)) ;
 	printf("-------------------------------------------------------------------\n") ;
+    kill(pid, SIGUSR1) ;
 
     int * uber_return = malloc(4*sizeof(int)) ;
     uber_return[0] = request.data[2] ;
@@ -304,19 +337,6 @@ void * driving_thread(void * args){
 	pthread_exit(NULL);
 }
 
-void * center_thread(){
-    int ret ;
-    char buf[1024] ;
-    while(1){
-		memset(buf, 0, 1024) ;
-        sleep(45) ;
-        ret = read(pfd[0], buf, 1024) ;
-        printf("--------------------------Center Message-------------------------------\n") ;
-        printf("Read %d chars from pipe.\n", ret) ;
-		printf("%s", buf) ;
-        printf("-----------------------------------------------------------------------\n") ;
-    }
-}
 
 link_list * dequeue(link_list * head, link_list * result, int idx){
 	if(head != NULL){
