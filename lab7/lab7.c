@@ -127,7 +127,7 @@ int main(int argc, char ** argv){
     pthread_mutex_lock(&data_passing_done) ;
 
     // Remove semaphore if system interupted
-    signal(SIGINT, intHandler);
+    //signal(SIGINT, intHandler);
 
     // Setting Timer signal
     struct sigaction sa ;
@@ -277,26 +277,28 @@ void * driving_thread(void * args){
     x[4] = request.data[2] ;
     y[4] = request.data[3] ;
     char * target_str = malloc(100*sizeof(char));
-    char * str = malloc(10*sizeof(char));
+    char * path_str = malloc(100*sizeof(char)) ;
+	char * str = malloc(10*sizeof(char));
     int distance = abs(uber.data[0] - request.data[0]) +
         abs( uber.data[1] - request.data[1]) +
         abs(request.data[0] - request.data[2]) +
         abs(request.data[1] - request.data[3]) ;
-    sprintf(target_str, "car %d dist=%d: %d,%d->%d,%d->%d,%d==>%d,%d",
-        car_id, distance, uber.data[0], uber.data[1], request.data[0], request.data[1], request.data[2], request.data[3], uber.data[0], uber.data[1]);
-    for (i = 1; i < 5; i++) {
+    sprintf(target_str, "car %d dist=%d: %d,%d->%d,%d->%d,%d==>",
+        car_id, distance, uber.data[0], uber.data[1], request.data[0], request.data[1], request.data[2], request.data[3]);
+    sprintf(path_str, "%d,%d", uber.data[0], uber.data[1]) ;
+	for (i = 1; i < 5; i++) {
         sleep(sleep_time) ;
         int next_intersection_id = trans_position(x[i], y[i]) ;
         int current_intersection_id = trans_position(x[i-1], y[i-1]) ;
         if (next_intersection_id == current_intersection_id){
             sprintf(str, "->%d,%d ", x[i], y[i]) ;
-            target_str = strcat( target_str, str ) ;
-            printf("%s\n", target_str) ;
+            path_str = strcat(path_str, str) ;
+            printf("%s\n", path_str) ;
             continue ;
         }
         while((my_sem_wait(intersection_sem, next_intersection_id, IPC_NOWAIT) < 0)) {
-            target_str = strcat( target_str, "->wait" ) ;
-            printf("%s\n", target_str) ;
+            path_str = strcat( path_str, "->wait" ) ;
+            printf("%s\n", path_str) ;
             #if PXA
             blink(lcd_fd) ; // 4 seconds
             #else
@@ -305,15 +307,17 @@ void * driving_thread(void * args){
         }
         my_sem_post(intersection_sem, current_intersection_id) ;
         sprintf(str, "->%d,%d ", x[i], y[i]) ;
-        target_str = strcat( target_str, str ) ;
-        printf("%s\n", target_str) ;
+        path_str = strcat( path_str, str ) ;
+        printf("%s\n", path_str) ;
     }
     end = time_cnt ;
 	printf("--------------------------Car %d done-------------------------------\n", car_id) ;
-    printf("Driving thread message: \n");
-    sprintf(target_str, "%s\n", target_str) ;
+    int used_time = end - start ;
+	printf("Driving thread message: \n");
+    sprintf(target_str, "%s\n", strcat(target_str, path_str)) ;
     printf("%s", target_str) ;
-    printf("timer = %d\n", end-start) ;
+	sprintf(target_str, "%sUsed time: %d seconds.\n", target_str, used_time) ;
+    //printf("timer = %d\n", used_time) ;
     write(pfd[1], target_str, strlen(target_str)) ;
 	printf("-------------------------------------------------------------------\n") ;
     kill(pid, SIGUSR1) ;
